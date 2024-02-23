@@ -1,0 +1,69 @@
+% Parameters
+T = 1;
+K = 10;
+r = 0.06;
+sigma = 0.3;
+delta = 0.05;
+M = 100; % Space steps
+N = 100; % Time steps
+Smax = 2 * K; % maximum stock price
+dt = T / N;
+dS = Smax / M;
+lambda = sigma^2 * dt / (dS^2);
+
+% Discretized price and time levels
+S = 0:dS:Smax;
+time = 0:dt:T;
+
+% Initialize solutions
+V_FTCS = zeros(M+1, N+1);
+V_BTCS = zeros(M+1, N+1);
+V_CN = zeros(M+1, N+1);
+V_FTCS(:,1) = max(K - S, 0);
+V_BTCS(:,1) = V_FTCS(:,1);
+V_CN(:,1) = V_FTCS(:,1);
+
+% Tridiagonal matrix setup for BTCS and Crank-Nicolson
+A = diag(1 + lambda + r*dt + 2*lambda*S.^2) + diag(-0.5*lambda*(S(2:end).^2 - S(2:end)) - 0.5*delta*S(2:end), 1) + diag(-0.5*lambda*(S(1:end-1).^2 + S(1:end-1)) + 0.5*delta*S(1:end-1), -1);
+B = diag(1 - lambda - r*dt - 2*lambda*S.^2) + diag(0.5*lambda*(S(2:end).^2 + S(2:end)) + 0.5*delta*S(2:end), 1) + diag(0.5*lambda*(S(1:end-1).^2 - S(1:end-1)) - 0.5*delta*S(1:end-1), -1);
+
+% Setting up tolerance and maximum iterations for iterative methods
+tolerance = 1e-5;
+max_iterations = 1000;
+
+for n = 2:N+1
+    % FTCS
+    for i = 2:M
+        V_FTCS(i, n) = V_FTCS(i, n-1) + 0.5*lambda*(S(i)^2*(V_FTCS(i+1, n-1) - 2*V_FTCS(i, n-1) + V_FTCS(i-1, n-1)) + S(i)*(V_FTCS(i+1, n-1) - V_FTCS(i-1, n-1))) - r*V_FTCS(i, n-1)*dt;
+    end
+    
+    % BTCS using Jacobi method
+    V_BTCS(:,n) = jacobi_method(A, V_BTCS(:,n-1), V_BTCS(:,n-1), tolerance, max_iterations);
+    
+    % Crank-Nicolson using Jacobi method
+    V_CN(:,n) = jacobi_method(A + 0.5*dt*B*diag(S.^2), V_CN(:,n-1), B*V_CN(:,n-1), tolerance, max_iterations);
+    
+    % Note: For Gauss-Seidel or SOR, replace `jacobi_method` with `gauss_seidel_method` or `sor_method` respectively.
+end
+
+% Plotting the surface plots
+figure;
+surf(S, time, V_FTCS');
+title('FTCS Solution');
+xlabel('Stock Price');
+ylabel('Time');
+zlabel('Option Price');
+
+figure;
+surf(S, time, V_BTCS');
+title('BTCS Solution');
+xlabel('Stock Price');
+ylabel('Time');
+zlabel('Option Price');
+
+figure;
+surf(S, time, V_CN');
+title('Crank-Nicolson Solution');
+xlabel('Stock Price');
+ylabel('Time');
+zlabel('Option Price');
